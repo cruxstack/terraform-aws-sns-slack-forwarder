@@ -1,6 +1,7 @@
 config {
   # Enable module inspection
-  module = true
+  # Options: all (default), local, none
+  call_module_type = "all"
 
   # Force zero exit code on warnings
   force = false
