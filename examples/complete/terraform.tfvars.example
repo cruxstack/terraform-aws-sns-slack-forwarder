@@ -1,0 +1,28 @@
+aws_region = "us-east-1"
+
+# Naming context
+namespace   = "myco"
+environment = "prod"
+stage       = "ops"
+name        = "slack-forwarder"
+
+# Slack channels (obtain these from your Slack workspace)
+# You can find channel IDs by right-clicking a channel in Slack and selecting "View details"
+default_slack_channel        = "C1234567890"  # #general or fallback channel
+security_critical_channel    = "C0987654321"  # #security-alerts
+infrastructure_channel       = "C1111222222"  # #infrastructure
+application_channel          = "C2222333333"  # #application-alerts
+
+# Lambda configuration
+debug_enabled              = false
+lambda_memory_size         = 256
+lambda_timeout             = 30
+lambda_architecture        = "x86_64"
+lambda_log_retention_days  = 30
+
+# Tags
+team = "platform"
+additional_tags = {
+  CostCenter = "engineering"
+  Owner      = "platform-team"
+}
