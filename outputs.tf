@@ -56,6 +56,23 @@ output "ssm_parameter_slack_token_name" {
   value       = try(aws_ssm_parameter.slack_token[0].name, null)
 }
 
+# ---------------------------------------------------------------------- kms ---
+
+output "kms_key_id" {
+  description = "ID of the KMS key used for SNS topic encryption"
+  value       = try(aws_kms_key.sns[0].key_id, null)
+}
+
+output "kms_key_arn" {
+  description = "ARN of the KMS key used for SNS topic encryption"
+  value       = try(aws_kms_key.sns[0].arn, null)
+}
+
+output "kms_key_alias" {
+  description = "Alias of the KMS key used for SNS topic encryption"
+  value       = try(aws_kms_alias.sns[0].name, null)
+}
+
 # --------------------------------------------------------------- sns topics ---
 
 output "sns_topic_arns" {

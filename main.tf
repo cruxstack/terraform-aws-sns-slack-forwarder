@@ -144,13 +144,71 @@ resource "aws_ssm_parameter" "slack_token" {
   tags = module.this.tags
 }
 
+# ===================================================================== kms ===
+
+resource "aws_kms_key" "sns" {
+  count = local.enabled ? 1 : 0
+
+  description             = "KMS key for SNS topic encryption in ${module.this.id}"
+  deletion_window_in_days = 10
+  enable_key_rotation     = true
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "Enable IAM User Permissions"
+        Effect = "Allow"
+        Principal = {
+          AWS = "arn:${local.aws_partition}:iam::${local.aws_account_id}:root"
+        }
+        Action   = "kms:*"
+        Resource = "*"
+      },
+      {
+        Sid    = "Allow CloudWatch to use the key"
+        Effect = "Allow"
+        Principal = {
+          Service = "cloudwatch.amazonaws.com"
+        }
+        Action = [
+          "kms:Decrypt",
+          "kms:GenerateDataKey"
+        ]
+        Resource = "*"
+      },
+      {
+        Sid    = "Allow SNS to use the key"
+        Effect = "Allow"
+        Principal = {
+          Service = "sns.amazonaws.com"
+        }
+        Action = [
+          "kms:Decrypt",
+          "kms:GenerateDataKey"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+
+  tags = module.this.tags
+}
+
+resource "aws_kms_alias" "sns" {
+  count = local.enabled ? 1 : 0
+
+  name          = "alias/${module.this.id}-sns"
+  target_key_id = aws_kms_key.sns[0].key_id
+}
+
 # ================================================================ sns topics ===
 
 resource "aws_sns_topic" "this" {
   for_each = local.topics
 
   name              = "${module.this.id}-${each.key}"
-  kms_master_key_id = "alias/aws/sns"
+  kms_master_key_id = aws_kms_key.sns[0].id
 
   tags = module.this.tags
 }
