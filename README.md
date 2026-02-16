@@ -3,6 +3,36 @@
 Terraform module that creates SNS topics and forwards SNS messages to Slack channels
 based on configurable routing rules.
 
+## What
+
+This Terraform module deploys a complete AWS SNS to Slack integration with intelligent
+message routing capabilities:
+
+- **SNS Topic Creation** - Automatically provisions SNS topics with customer-managed KMS
+  encryption for CloudWatch compatibility
+- **Smart Message Routing** - Routes SNS notifications to specific Slack channels based on
+  topic ARN patterns and message subject patterns
+- **Lambda Forwarder** - Go-based Lambda function that processes SNS messages and formats
+  them for Slack with rich message blocks
+- **CloudWatch Integration** - Enables CloudWatch alarms to publish to SNS topics with
+  proper KMS key permissions
+
+## Why
+
+AWS services generate notifications through SNS, but routing these alerts to the right
+Slack channels requires custom integration. This module solves that problem by:
+
+- **Centralizing Alert Management** - Single Terraform module to manage all SNS-to-Slack
+  routing without writing custom Lambda code
+- **Flexible Routing** - Priority-based pattern matching ensures critical alerts go to
+  the right teams (e.g., security alerts to #security, infrastructure warnings to #ops)
+- **Zero Maintenance** - Serverless Lambda architecture with automatic log rotation and
+  secure token management via SSM Parameter Store
+- **CloudWatch Compatible** - Customer-managed KMS keys allow CloudWatch alarms to
+  trigger SNS notifications without permission errors
+- **Production Ready** - Built-in debug logging, configurable timeouts, and fallback
+  channels ensure reliable message delivery
+
 ## Features
 
 - **SNS Topic Management** - Create and manage SNS topics with KMS encryption
