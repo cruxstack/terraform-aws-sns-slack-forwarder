@@ -3,6 +3,36 @@
 Terraform module that creates SNS topics and forwards SNS messages to Slack channels
 based on configurable routing rules.
 
+## What
+
+This Terraform module deploys a complete AWS SNS to Slack integration with intelligent
+message routing capabilities:
+
+- **SNS Topic Creation** - Automatically provisions SNS topics with customer-managed KMS
+  encryption for CloudWatch compatibility
+- **Smart Message Routing** - Routes SNS notifications to specific Slack channels based on
+  topic ARN patterns and message subject patterns
+- **Lambda Forwarder** - Go-based Lambda function that processes SNS messages and formats
+  them for Slack with rich message blocks
+- **CloudWatch Integration** - Enables CloudWatch alarms to publish to SNS topics with
+  proper KMS key permissions
+
+## Why
+
+AWS services generate notifications through SNS, but routing these alerts to the right
+Slack channels requires custom integration. This module solves that problem by:
+
+- **Centralizing Alert Management** - Single Terraform module to manage all SNS-to-Slack
+  routing without writing custom Lambda code
+- **Flexible Routing** - Priority-based pattern matching ensures critical alerts go to
+  the right teams (e.g., security alerts to #security, infrastructure warnings to #ops)
+- **Zero Maintenance** - Serverless Lambda architecture with automatic log rotation and
+  secure token management via SSM Parameter Store
+- **CloudWatch Compatible** - Customer-managed KMS keys allow CloudWatch alarms to
+  trigger SNS notifications without permission errors
+- **Production Ready** - Built-in debug logging, configurable timeouts, and fallback
+  channels ensure reliable message delivery
+
 ## Features
 
 - **SNS Topic Management** - Create and manage SNS topics with KMS encryption
@@ -75,6 +105,34 @@ module "sns_slack_forwarder" {
 
 1. **Set up Slack Bot Token** - Create a Slack app with appropriate scopes and
    obtain a bot token (xoxb-...)
+   
+   **Option A: Use App Manifest (Recommended)**
+   
+   Use the provided app manifest for quick setup:
+   
+   a. Go to https://api.slack.com/apps and click "Create New App"
+   
+   b. Select "From an app manifest"
+   
+   c. Choose your workspace
+   
+   d. Copy the contents of [`assets/slack/slack-app-manifest.yaml`](assets/slack/slack-app-manifest.yaml)
+      and paste it into the manifest editor
+   
+   e. Add the bot icon: Upload [`assets/slack/aws-sns-icon.png`](assets/slack/aws-sns-icon.png)
+      in "Display Information" settings under "App Icon & Preview"
+   
+   f. Install the app to your workspace and copy the Bot User OAuth Token (xoxb-...)
+   
+   **Option B: Manual Setup**
+   
+   a. Create a new Slack app at https://api.slack.com/apps
+   
+   b. Navigate to "OAuth & Permissions" and add the following Bot Token Scopes:
+      - `chat:write`
+      - `chat:write.public`
+   
+   c. Install the app to your workspace and copy the Bot User OAuth Token (xoxb-...)
 
 2. **Deploy Module** - Use the example configuration above or see
    [Complete Example](examples/complete) for a full working setup

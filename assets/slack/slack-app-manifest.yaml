@@ -1,0 +1,17 @@
+display_information:
+  name: AWS SNS Slack Forwarder
+  description: A Go-based AWS Lambda function that forwards SNS messages to Slack channels with flexible routing and rich message formatting.
+  background_color: "#000000"
+features:
+  bot_user:
+    display_name: AWS SNS Slack Forwarder
+    always_online: false
+oauth_config:
+  scopes:
+    bot:
+      - chat:write
+      - chat:write.public
+settings:
+  org_deploy_enabled: false
+  socket_mode_enabled: false
+  token_rotation_enabled: false
