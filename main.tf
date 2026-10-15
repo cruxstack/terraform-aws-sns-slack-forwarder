@@ -188,6 +188,18 @@ resource "aws_kms_key" "sns" {
           "kms:GenerateDataKey"
         ]
         Resource = "*"
+      },
+      {
+        Sid    = "Allow EventBridge to use the key"
+        Effect = "Allow"
+        Principal = {
+          Service = "events.amazonaws.com"
+        }
+        Action = [
+          "kms:Decrypt",
+          "kms:GenerateDataKey"
+        ]
+        Resource = "*"
       }
     ]
   })
@@ -211,6 +223,64 @@ resource "aws_sns_topic" "this" {
   kms_master_key_id = aws_kms_key.sns[0].id
 
   tags = module.this.tags
+}
+
+# ---------------------------------------------------------------- sns policy ---
+# CloudWatch Alarms can publish to a same-account SNS topic without a resource
+# policy at all (AWS carves this out as a special case - the KMS key
+# permissions above are the only thing alarms need). EventBridge rules do not
+# get that same carve-out: AWS requires an explicit topic policy statement for
+# "events.amazonaws.com", or publishes silently fail. Replaces the implicit
+# AWS-managed default policy, so the default owner statement is reproduced
+# here to avoid any change in who can manage the topic.
+resource "aws_sns_topic_policy" "this" {
+  for_each = local.topics
+
+  arn = aws_sns_topic.this[each.key].arn
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "DefaultOwnerAccess"
+        Effect = "Allow"
+        Principal = {
+          AWS = "*"
+        }
+        Action = [
+          "SNS:GetTopicAttributes",
+          "SNS:SetTopicAttributes",
+          "SNS:AddPermission",
+          "SNS:RemovePermission",
+          "SNS:DeleteTopic",
+          "SNS:Subscribe",
+          "SNS:ListSubscriptionsByTopic",
+          "SNS:Publish",
+          "SNS:Receive"
+        ]
+        Resource = aws_sns_topic.this[each.key].arn
+        Condition = {
+          StringEquals = {
+            "AWS:SourceOwner" = local.aws_account_id
+          }
+        }
+      },
+      {
+        Sid    = "AllowEventBridgePublish"
+        Effect = "Allow"
+        Principal = {
+          Service = "events.amazonaws.com"
+        }
+        Action   = "sns:Publish"
+        Resource = aws_sns_topic.this[each.key].arn
+        Condition = {
+          StringEquals = {
+            "aws:SourceAccount" = local.aws_account_id
+          }
+        }
+      }
+    ]
+  })
 }
 
 # ========================================================== sns subscriptions ===
