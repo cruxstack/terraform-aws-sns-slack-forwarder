@@ -16,6 +16,8 @@ message routing capabilities:
   them for Slack with rich message blocks
 - **CloudWatch Integration** - Enables CloudWatch alarms to publish to SNS topics with
   proper KMS key permissions
+- **EventBridge Integration** - Enables EventBridge rules (e.g. service state-change
+  events) to publish to SNS topics with the required topic and KMS key permissions
 
 ## Why
 
@@ -30,6 +32,9 @@ Slack channels requires custom integration. This module solves that problem by:
   secure token management via SSM Parameter Store
 - **CloudWatch Compatible** - Customer-managed KMS keys allow CloudWatch alarms to
   trigger SNS notifications without permission errors
+- **EventBridge Compatible** - A topic policy plus KMS key grant let EventBridge rules
+  target these topics directly, so any AWS service event (DMS task state changes, etc.)
+  can be forwarded to Slack with no extra plumbing
 - **Production Ready** - Built-in debug logging, configurable timeouts, and fallback
   channels ensure reliable message delivery
 
@@ -341,6 +346,15 @@ The Lambda execution role requires the following permissions:
   ]
 }
 ```
+
+### SNS Topic & KMS Key Policies
+
+Each SNS topic's KMS key grants `kms:Decrypt`/`kms:GenerateDataKey` to `cloudwatch.amazonaws.com`,
+`sns.amazonaws.com`, and `events.amazonaws.com`, and each topic carries an `aws_sns_topic_policy`
+allowing `events.amazonaws.com` to `sns:Publish` (scoped to the same account via
+`aws:SourceAccount`). CloudWatch Alarms don't need the topic-policy statement - AWS allows
+same-account alarm actions to publish without one - but EventBridge rule targets do, so any
+EventBridge rule in the same account can publish directly to these topics without further setup.
 
 ## Examples
 
