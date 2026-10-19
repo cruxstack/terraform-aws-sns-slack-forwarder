@@ -106,3 +106,11 @@ variable "ssm_parameter_arns" {
   type        = list(string)
   default     = []
 }
+
+# --------------------------------------------------------------------- kms ---
+
+variable "kms_key_policy" {
+  description = "Full JSON KMS key policy document to use for the SNS topic encryption key. When null (default), a policy is generated that grants key administration to the account root and scopes CloudWatch, SNS, and EventBridge service access to the current AWS account, with SNS access further scoped to this module's own topics."
+  type        = string
+  default     = null
+}
