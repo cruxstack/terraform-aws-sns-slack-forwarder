@@ -50,6 +50,8 @@ Slack channels requires custom integration. This module solves that problem by:
 - **Debug Support** - Enable debug logging to troubleshoot routing issues
 - **CloudWatch Logs** - Automatic log group creation with configurable retention
 - **Secure Secrets** - Slack token stored in AWS SSM Parameter Store (SecureString)
+- **Customizable KMS Policy** - Override the generated SNS KMS key policy entirely via
+  `kms_key_policy` for custom security requirements
 
 ## Usage
 
@@ -219,6 +221,7 @@ general_alerts = {
 | `lambda_log_retention_days`   | CloudWatch log retention in days                                             | `number`       | `30`                                                      |    no    |
 | `lambda_environment_variables`| Additional environment variables for Lambda                                   | `map(string)`  | `{}`                                                      |    no    |
 | `ssm_parameter_arns`          | List of SSM Parameter Store ARNs Lambda can access                           | `list(string)` | `[]`                                                      |    no    |
+| `kms_key_policy`              | Full JSON KMS key policy for the SNS topic encryption key (`null` generates a scoped default) | `string`       | `null`                                                    |    no    |
 
 ### CloudPosse Context Variables
 
@@ -350,11 +353,29 @@ The Lambda execution role requires the following permissions:
 ### SNS Topic & KMS Key Policies
 
 Each SNS topic's KMS key grants `kms:Decrypt`/`kms:GenerateDataKey` to `cloudwatch.amazonaws.com`,
-`sns.amazonaws.com`, and `events.amazonaws.com`, and each topic carries an `aws_sns_topic_policy`
-allowing `events.amazonaws.com` to `sns:Publish` (scoped to the same account via
-`aws:SourceAccount`). CloudWatch Alarms don't need the topic-policy statement - AWS allows
-same-account alarm actions to publish without one - but EventBridge rule targets do, so any
-EventBridge rule in the same account can publish directly to these topics without further setup.
+`sns.amazonaws.com`, and `events.amazonaws.com`, scoped down as follows:
+
+- `cloudwatch.amazonaws.com` and `sns.amazonaws.com` are restricted to the current AWS account via
+  `aws:SourceAccount`, and `sns.amazonaws.com` is further restricted to this module's own topic
+  ARNs via `aws:SourceArn`.
+- `events.amazonaws.com` relies solely on a `kms:EncryptionContext:aws:sns:topicArn` condition
+  scoped to this module's topics. AWS does not support `aws:SourceAccount`/`aws:SourceArn`
+  conditions for EventBridge-to-encrypted-topic KMS grants, so adding them there would silently
+  break EventBridge publishes.
+- All three statements also include the `kms:EncryptionContext:aws:sns:topicArn` condition as
+  defense-in-depth, since it's enforced by KMS itself against the ciphertext rather than just
+  request metadata.
+
+Each topic also carries an `aws_sns_topic_policy` allowing `events.amazonaws.com` to `sns:Publish`
+(scoped to the same account via `aws:SourceAccount`). CloudWatch Alarms don't need the
+topic-policy statement - AWS allows same-account alarm actions to publish without one - but
+EventBridge rule targets do, so any EventBridge rule in the same account can publish directly to
+these topics without further setup.
+
+To fully replace the generated KMS key policy (for example, to add other principals or apply
+stricter organization-specific requirements), set `kms_key_policy` to a complete JSON policy
+document. When left as `null` (the default), the module generates the scoped policy described
+above.
 
 ## Examples
 

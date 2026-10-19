@@ -29,6 +29,96 @@ locals {
     if v.enabled
   } : {}
 
+  # ARNs built from the naming convention (not the aws_sns_topic resource
+  # itself) so the KMS key policy can reference them without creating a
+  # dependency cycle
+  sns_topic_arns = [
+    for key, _ in local.topics :
+    "arn:${local.aws_partition}:sns:${local.aws_region_name}:${local.aws_account_id}:${module.this.id}-${key}"
+  ]
+
+  # Encryption context SNS sets on every Decrypt/GenerateDataKey call made
+  # for a topic's messages, regardless of which principal triggers it. This
+  # is enforced by KMS itself (bound to the ciphertext), so it scopes a
+  # grant to specific topics even for principals where aws:SourceArn /
+  # aws:SourceAccount can't be used (see AllowEventBridgeToUseKey below).
+  kms_key_policy_encryption_context_condition = length(local.sns_topic_arns) > 0 ? {
+    "kms:EncryptionContext:aws:sns:topicArn" = local.sns_topic_arns
+  } : {}
+
+  # Default KMS key policy, used when var.kms_key_policy is not provided.
+  # Grants key administration to the account root, and scopes CloudWatch,
+  # SNS, and EventBridge service access to the current AWS account and to
+  # this module's own topics.
+  kms_key_policy_default = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "EnableIAMUserPermissions"
+        Effect = "Allow"
+        Principal = {
+          AWS = "arn:${local.aws_partition}:iam::${local.aws_account_id}:root"
+        }
+        Action   = "kms:*"
+        Resource = "*"
+      },
+      {
+        Sid    = "AllowCloudWatchToUseKey"
+        Effect = "Allow"
+        Principal = {
+          Service = "cloudwatch.amazonaws.com"
+        }
+        Action = [
+          "kms:Decrypt",
+          "kms:GenerateDataKey"
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = merge(
+            { "aws:SourceAccount" = local.aws_account_id },
+            local.kms_key_policy_encryption_context_condition
+          )
+        }
+      },
+      {
+        Sid    = "AllowSNSToUseKey"
+        Effect = "Allow"
+        Principal = {
+          Service = "sns.amazonaws.com"
+        }
+        Action = [
+          "kms:Decrypt",
+          "kms:GenerateDataKey"
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = merge(
+            { "aws:SourceAccount" = local.aws_account_id },
+            length(local.sns_topic_arns) > 0 ? { "aws:SourceArn" = local.sns_topic_arns } : {},
+            local.kms_key_policy_encryption_context_condition
+          )
+        }
+      },
+      {
+        Sid    = "AllowEventBridgeToUseKey"
+        Effect = "Allow"
+        Principal = {
+          Service = "events.amazonaws.com"
+        }
+        Action = [
+          "kms:Decrypt",
+          "kms:GenerateDataKey"
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = local.kms_key_policy_encryption_context_condition
+        }
+      }
+    ]
+  })
+
+  kms_key_policy = var.kms_key_policy != null ? var.kms_key_policy : local.kms_key_policy_default
+
   # Sort route config by priority for deterministic ordering
   # Convert to list with priority-prefixed keys for sorting
   route_config_for_sort = {
@@ -153,56 +243,7 @@ resource "aws_kms_key" "sns" {
   deletion_window_in_days = 10
   enable_key_rotation     = true
 
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Sid    = "Enable IAM User Permissions"
-        Effect = "Allow"
-        Principal = {
-          AWS = "arn:${local.aws_partition}:iam::${local.aws_account_id}:root"
-        }
-        Action   = "kms:*"
-        Resource = "*"
-      },
-      {
-        Sid    = "Allow CloudWatch to use the key"
-        Effect = "Allow"
-        Principal = {
-          Service = "cloudwatch.amazonaws.com"
-        }
-        Action = [
-          "kms:Decrypt",
-          "kms:GenerateDataKey"
-        ]
-        Resource = "*"
-      },
-      {
-        Sid    = "Allow SNS to use the key"
-        Effect = "Allow"
-        Principal = {
-          Service = "sns.amazonaws.com"
-        }
-        Action = [
-          "kms:Decrypt",
-          "kms:GenerateDataKey"
-        ]
-        Resource = "*"
-      },
-      {
-        Sid    = "Allow EventBridge to use the key"
-        Effect = "Allow"
-        Principal = {
-          Service = "events.amazonaws.com"
-        }
-        Action = [
-          "kms:Decrypt",
-          "kms:GenerateDataKey"
-        ]
-        Resource = "*"
-      }
-    ]
-  })
+  policy = local.kms_key_policy
 
   tags = module.this.tags
 }
